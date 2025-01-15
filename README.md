@@ -1,5 +1,5 @@
 
-Real name : Alwin Anto
-TACC Username : alwinanto
-EID : aa93428 
+Real name : Alwin Anto <br>
+TACC Username : alwinanto <br>
+EID : aa93428 <br>
 GitHub repo : https://github.com/kiliyan/CSE392_Spring_25
