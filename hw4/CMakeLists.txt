@@ -1,8 +1,10 @@
 cmake_minimum_required( VERSION 3.13 )
 project( isendirecvarray VERSION 1.0 )
 
+set(SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
 add_executable( isendirecvarray )
-target_sources( isendirecvarray PRIVATE isendirecvarray.cxx tools.cxx)
+target_sources( isendirecvarray PRIVATE ${SRC_DIR}/isendirecvarray.cxx ${SRC_DIR}/tools.cxx)
 
 # find_package( MPI )
 # target_include_directories(
@@ -14,8 +16,9 @@ target_sources( isendirecvarray PRIVATE isendirecvarray.cxx tools.cxx)
 
 find_package( mpl REQUIRED )
 target_include_directories(
-        isendirecvarray PUBLIC
+	isendirecvarray PUBLIC
         mpl::mpl )
+target_include_directories(isendirecvarray PUBLIC ${SRC_DIR})
 target_link_libraries(
         isendirecvarray PUBLIC
         mpl::mpl )

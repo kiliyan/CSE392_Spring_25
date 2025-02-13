@@ -79,19 +79,25 @@ int main() {
    * Now make sure all Isend/Irecv operations are completed
    */
 /**** your code here ****/
+
+
+  //requests.waitall();
+  
+  for (int i=1; i<N-1; i++)
+  { outdata[i] = indata[i-1] + indata[i] + indata[i+1]; }
+  
   requests.waitall();
+  
+  
   
   /*
    * Do the averaging operation
    * Note that leftdata==rightdata==0 if not explicitly received.
    */
-  for (int i=0; i<N; i++)
-    if (i==0)
-      outdata[i] = leftdata + indata[i] + indata[i+1];
-    else if (i==N-1)
-      outdata[i] = indata[i-1] + indata[i] + rightdata;
-    else
-      outdata[i] = indata[i-1] + indata[i] + indata[i+1];
+   // if (i==0)
+    outdata[0] = leftdata + indata[0] + indata[1];
+    //else if (i==N-1)
+    outdata[N-1] = indata[N-2] + indata[N-1] + rightdata; 
   
   /*
    * Check correctness of the result:
