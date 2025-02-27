@@ -1,0 +1,21 @@
+mkdir: cannot create directory ‘build1’: File exists
+
+real	0m2.285s
+user	0m0.668s
+sys	0m0.657s
+
+real	0m2.362s
+user	0m1.686s
+sys	0m2.834s
+
+real	0m3.205s
+user	0m10.503s
+sys	0m10.619s
+
+real	0m3.247s
+user	0m10.122s
+sys	0m9.249s
+
+real	2m17.820s
+user	0m9.470s
+sys	0m10.447s

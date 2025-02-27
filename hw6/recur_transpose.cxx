@@ -14,7 +14,7 @@ void recur_transpose(const mpl::communicator &comm, int &element) {
     if (nprocs == 1) return;
      
     // remake process grid 
-    int N = static_cast<int>(sqrt(nprocs));
+    int N = sqrt(nprocs);
     int n_row = procno / N;
     int n_col = procno - N*n_row ;
     
@@ -111,6 +111,7 @@ for(int i=0; i<N;i++){
 }
 cout<<"Transpose done"<<endl;
 }
+
  return 0;
 }
 

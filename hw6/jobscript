@@ -4,26 +4,26 @@
 #SBATCH -o myjob.o%j       # Name of stdout output file
 #SBATCH -e myjob.e%j       # Name of stderr error file
 #SBATCH -p skx      # Queue (partition) name
-#SBATCH -N 8               # Total # of nodes 
-#SBATCH --ntasks-per-node 32              # Total # of mpi tasks
+#SBATCH -N 22               # Total # of nodes 
+#SBATCH -n 1024              # Total # of mpi tasks
 #SBATCH -t 00:10:00        # Run time (hh:mm:ss)
-##SBATCH --mail-user=alwinanto@utexas.edu
-##SBATCH --mail-type=all    # Send email at begin and end of job
-####SBATCH -A ASC25001       # Allocation name (req'd if you have more than 1)
+#SBATCH --mail-user=alwinanto@utexas.edu
+#SBATCH --mail-type=all    # Send email at begin and end of job
+#SBATCH -A ASC25001       # Allocation name (req'd if you have more than 1)
 
 # Other commands must follow all #SBATCH directives...
 
 module load mpl
 pwd
-mkdir build
-cd build
+mkdir build1
+cd build1
 cmake ..
 make
 
 date
 
 # Launch MPI code... 
-for i in 4 16 64 256 ;
+for i in 4 16 64 256 1024 ;
 do
  echo "With $i number of processes"
  time ibrun -n $i recur_transpose

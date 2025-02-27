@@ -1,6 +1,8 @@
 cmake_minimum_required( VERSION 3.13 )
 project( recur_transpose VERSION 1.0 )
 
+set(CMAKE_CXX_FLAGS "-O3 -flto -march=native")
+
 add_executable( recur_transpose )
 target_sources( recur_transpose PRIVATE recur_transpose.cxx )
 
