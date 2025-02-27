@@ -15,6 +15,11 @@
 
 module load mpl
 pwd
+mkdir build
+cd build
+cmake ..
+make
+
 date
 
 # Launch MPI code... 
