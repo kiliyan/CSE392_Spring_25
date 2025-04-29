@@ -1,13 +1,13 @@
 #include "basis.h"
-#include "grid.h"          // Assuming you have classes like mpmGrid, mpmGridPoint
-#include "material.h" // Assuming you have mpmMaterialPoint_2D_Classic
+#include "grid.h"          
+#include "material.h" 
 #include <cmath>
 #include <array>
-#include <utility> // for std::pair
+#include <utility> 
 #include <vector>
 
 
-
+// Function to calculate the shape value (i.e contribution to a grid point)
  double getShapeValue_Classic(const mpmMaterialPoint_2D_Classic& materialPoint, int index,const mpmGrid& grid) 
  {
     double fShapeValue = 0.0;
@@ -27,6 +27,7 @@
     return fShapeValue;
 }
 
+// Gradient is required for the stress and strain calculation
 std::array<double, 2> getShapeGradient_Classic(const mpmMaterialPoint_2D_Classic& materialPoint, int index, const mpmGrid& grid)
  {
     std::array<double, 2> v2Result = {0.0, 0.0};
@@ -59,6 +60,7 @@ std::array<std::array<double, 2>, 2> matrixMultiply_2D(const std::array<std::arr
             
     return result;
 }
+
 
 
 

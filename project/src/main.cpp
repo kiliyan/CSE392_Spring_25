@@ -25,12 +25,15 @@ int main(int argc, char **argv)
 
     auto fOffset = result["offset"].as<double>();
     auto nGrid = result["grid"].as<int>();
+ 
+    
+    MPI_Init(&argc, &argv); 
 
-    MPI_Init(&argc, &argv); // Initialize MPI
+    double start_time = MPI_Wtime();
 
     int procno, nprocs;
-    MPI_Comm_rank(MPI_COMM_WORLD, &procno); // Get process rank
-    MPI_Comm_size(MPI_COMM_WORLD, &nprocs); // Get number of processes
+    MPI_Comm_rank(MPI_COMM_WORLD, &procno); 
+    MPI_Comm_size(MPI_COMM_WORLD, &nprocs); 
 
     // Problem parameters
     const double fRadius = 0.2;
@@ -42,13 +45,13 @@ int main(int argc, char **argv)
     const std::vector<double> velocity = {.1, .1};
 
     // Grid creation (Lx, Ly, nx, ny) This is not parllelised. Discussed in the pdf
-    mpmGrid thisGrid(1.0, 1.0, nGrid + 1, nGrid + 1);
+    mpmGrid thisGrid(1.0, 1.0, nGrid + 1, nGrid + 1,procno);
 
     // All material points
     std::vector<mpmMaterialPoint_2D_Classic> allMaterialPoint;
 
     // First material domain
-    auto Materialdomain1 = createMaterialDomain(nprocs, procno, {0.2, 0.2}, 0.2, fOffset);
+    auto Materialdomain1 = createMaterialDomain(nprocs, procno, {0.2, 0.2}, fRadius, fOffset);
     for (auto &mp : Materialdomain1)
     {
         double fVolume = fOffset * fOffset;
@@ -66,8 +69,10 @@ int main(int argc, char **argv)
         allMaterialPoint.push_back(mp);
         InitialEnergy += 0.5 * (mp.v2Velocity[0] * mp.v2Velocity[0] + mp.v2Velocity[1] * mp.v2Velocity[1]) * mp.fMass;
     }
+
+    
     // Second material domain
-    auto Materialdomain2 = createMaterialDomain(nprocs, procno, {0.8, 0.8}, 0.2, fOffset);
+    auto Materialdomain2 = createMaterialDomain(nprocs, procno, {0.8, 0.8}, fRadius, fOffset);
     for (auto &mp : Materialdomain2)
     {
         double fVolume = fOffset * fOffset;
@@ -86,39 +91,24 @@ int main(int argc, char **argv)
         InitialEnergy += 0.5 * (mp.v2Velocity[0] * mp.v2Velocity[0] + mp.v2Velocity[1] * mp.v2Velocity[1]) * mp.fMass;
     }
 
-    MPI_Barrier(MPI_COMM_WORLD);
-
     double TotalInitialEnergy = 0.0;
-    MPI_Reduce(InitialEnergy, TotalInitialEnergy, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD)
+ 
+    // Get the initial energy from all processes
+    MPI_Reduce(&InitialEnergy, &TotalInitialEnergy, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
 
-        // ---------------------------------------------------------------------------
-        // Information about created domain
-        // double fMassTotal = 0.0;
-        // for (const auto &mp : allMaterialPoint)
-        //{
-        //    fMassTotal += mp.fMass;
-        //}
-        // std::cout << "Initial configuration:\n";
-        // std::cout << "    Mass: " << std::scientific << fMassTotal << "\n";
-        // std::cout << "Total number of material points: " << allMaterialPoint.size() << "\n";
-
-        // ---------------------------------------------------------------------------
-        // Timers
-        // ---------------------------------------------------------------------------
-
-        double fTimeEnd = 3.5;
+    double fTimeEnd = 3.5;
     double fTimeIncrement = 1.0e-3;
-    double fMarkedParticle_y = allMaterialPoint[0].v2Centroid[1];
     int time_steps = static_cast<int>(fTimeEnd / fTimeIncrement);
     std::vector<double> Energy(2 * time_steps, 0.0); // 0: Kinetic, 1: Strain
 
-    // ---------------------------------------------------------------------------
-    // Main analysis loop
 
+    if(procno==0) 
+    {std::cout<<"Number of processes: "<<nprocs<< " and umber of particles per process: "<< allMaterialPoint.size()<<std::endl;}
     for (int i = 0; i < time_steps; i++)
     {
-        std::cout << "Time: " << i * fTimeIncrement << "\n";
-        // tic();
+
+        if(i%(time_steps/10) + procno  ==0) std::cout << "Simulation " << 100*i/time_steps<< " percent completed\n";
+
 
         // Reset grid
         for (int idx = 0; idx < thisGrid.iNodes; idx++)
@@ -133,10 +123,9 @@ int main(int argc, char **argv)
         // Material to grid
         for (auto &mp : allMaterialPoint)
         {
-            auto adjacentGridPoints = thisGrid.getAdjacentGridPoints(mp);
+            auto adjacentGridPoints = thisGrid.getAdjacentGridPoints(mp,procno);
             for (auto idx : adjacentGridPoints)
             {
-                // mpmGridPoint &gp = thisGrid.GridPoints[idx];
                 auto fShapeValue = getShapeValue_Classic(mp, idx, thisGrid);
                 auto v2ShapeGradient = getShapeGradient_Classic(mp, idx, thisGrid);
 
@@ -153,18 +142,19 @@ int main(int argc, char **argv)
             }
         }
 
+        
         // Update grid momentum and apply BCs
         for (int idx = 0; idx < thisGrid.iNodes; idx++)
         {
             thisGrid.GridPoints_momentum[2 * idx] += thisGrid.GridPoints_force[2 * idx] * fTimeIncrement;
             thisGrid.GridPoints_momentum[2 * idx + 1] += thisGrid.GridPoints_force[2 * idx + 1] * fTimeIncrement;
 
-            if (GridPoints_v2Fixed[2 * idx])
+            if (thisGrid.GridPoints_v2Fixed[2 * idx])
             {
                 thisGrid.GridPoints_momentum[2 * idx] = 0.0;
                 thisGrid.GridPoints_force[2 * idx] = 0.0;
             }
-            if (GridPoints_v2Fixed[2 * idx + 1])
+            if (thisGrid.GridPoints_v2Fixed[2 * idx + 1])
             {
                 thisGrid.GridPoints_momentum[2 * idx + 1] = 0.0;
                 thisGrid.GridPoints_force[2 * idx + 1] = 0.0;
@@ -172,9 +162,8 @@ int main(int argc, char **argv)
         }
 
         // pack , send and  unpack data
-
-        std::vector<double> information(5 * thisGrid.iNodes, 0.0);
         // Perform MPI_Allreduce across all processes to sum up mass, momentum, and force
+        std::vector<double> information(5 * thisGrid.iNodes, 0.0);
         for (int idx = 0; idx < thisGrid.iNodes; idx++)
         {
             information[5 * idx + 0] = thisGrid.GridPoints_mass[idx];
@@ -184,7 +173,7 @@ int main(int argc, char **argv)
             information[5 * idx + 4] = thisGrid.GridPoints_force[2 * idx + 1];
         }
 
-        MPI_Allreduce(MPI_IN_PLACE, information.data(), 5 * thisGrid.iNodes, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+       MPI_Allreduce(MPI_IN_PLACE, information.data(), 5 * thisGrid.iNodes, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
         for (int idx = 0; idx < thisGrid.iNodes; idx++)
         {
@@ -198,16 +187,16 @@ int main(int argc, char **argv)
         // Grid to material
         for (auto &mp : allMaterialPoint)
         {
-            auto adjacentGridPoints = thisGrid.getAdjacentGridPoints(mp);
+            auto adjacentGridPoints = thisGrid.getAdjacentGridPoints(mp,procno);
             std::array<double, 2> v2CentroidIncrement = {0.0, 0.0};
 
             for (auto idx : adjacentGridPoints)
             {
-                // mpmGridPoint &gp = thisGrid.GridPoints[idx];
+
                 auto fShapeValue = getShapeValue_Classic(mp, idx, thisGrid);
                 auto v2ShapeGradient = getShapeGradient_Classic(mp, idx, thisGrid);
 
-                double tmass = thisGrid.GridPoints_mass[idx]; // temporary assignment
+                double tmass = thisGrid.GridPoints_mass[idx]; 
                 std::vector<double> gp_momentum = {thisGrid.GridPoints_momentum[2 * idx], thisGrid.GridPoints_momentum[2 * idx + 1]};
                 std::array<double, 2> v2GridPointVelocity = {0.0, 0.0};
                 if (tmass > 1.0e-8)
@@ -219,7 +208,6 @@ int main(int argc, char **argv)
                     mp.v2Velocity[1] += (fShapeValue * thisGrid.GridPoints_force[2 * idx + 1] / tmass) * fTimeIncrement;
                 }
 
-                // F + =
                 for (int i = 0; i < 2; ++i)
                     for (int j = 0; j < 2; ++j)
                         mp.m22DeformationGradientIncrement[i][j] += fTimeIncrement * v2GridPointVelocity[i] * v2ShapeGradient[j];
@@ -255,9 +243,6 @@ int main(int argc, char **argv)
             mp.v2Momentum[1] = mp.v2Velocity[1] * mp.fMass;
         }
 
-        // fProfiler_Grid2Particle += toq();
-        // fResultTime += fTimeIncrement ;
-
         double fStrainEnergy = 0.0;
         double fKineticEnergy = 0.0;
         for (auto thisMaterialPoint : allMaterialPoint)
@@ -272,12 +257,14 @@ int main(int argc, char **argv)
         Energy[2 * i] = fKineticEnergy;
         Energy[2 * i + 1] = fStrainEnergy;
     }
-    // (Skipping plot and energy tracking for now)
-
+  
     std::vector<double> GlobalEnergy;
-    if (procno == 0) GlobalEnergy.resize(2 * time_steps, 0.0);
-    
-    MPI_Reduce(Energy.data(), GlobalEnergy.data(), 2 * time_steps, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+    if (procno == 0) GlobalEnergy.resize(2 * (time_steps), 0.0);
+ 
+    MPI_Reduce(Energy.data(), GlobalEnergy.data(), 2 * (time_steps), MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+
+    double end_time = MPI_Wtime();
+    if (procno == 0) std::cout<<"Time taken for simulation: " << end_time - start_time << "seconds\n";
 
     if (!procno)
     {
@@ -286,14 +273,14 @@ int main(int argc, char **argv)
         outFile << "Time, Kinetic Energy, Strain Energy, Total Energy" << std::endl;
         for (int i = 0; i < time_steps; i++)
         {
-            error += std::max(std::abs(TotalInitialEnergy - GlobalEnergy[2 * i] - GlobalEnergy[2 * i + 1]), 1e-8);
-            outFile << i * fTimeIncrement << ", " << GlobalEnergy[2i] << ", " << GlobalEnergy[2 * i + 1] << ", " << GlobalEnergy[2 * i] + GlobalEnergy[2 * i + 1] << std::endl;
+            error += std::max(std::abs(TotalInitialEnergy - GlobalEnergy[2*i] - GlobalEnergy[2*i + 1]), 1e-8);
+            outFile << i * fTimeIncrement << ", " << GlobalEnergy[2*i] << ", " << GlobalEnergy[2*i + 1] << ", " << GlobalEnergy[2*i] + GlobalEnergy[2*i + 1] << std::endl;
         }
         outFile.close();
-        std::cout << "Initial energy: " << TotalInitialEnergy << "\n";
-        std::cout << "Mean error: " << error / (fTimeEnd / fTimeIncrement) << "\n";
-        std::cout << "Error: " << error << "\n";
+        std::cout << "Total energy: " << TotalInitialEnergy << "\n";
+        std::cout << "Error: " << error / time_steps << "\n";
     }
-    MPI_Finalize(); // Finalize MPI
+    MPI_Finalize(); 
     return 0;
 }
+
